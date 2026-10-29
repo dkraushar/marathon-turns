@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Running Wide</title>
+    <meta name="description" content="How much farther would you run if you took every NYC Marathon turn on the outside? A map of all 66 turns." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="panel">
+        <p class="kicker">NYC Marathon · Sunday, Nov 1, 2026</p>
+        <h1>What if you took <em>every</em> turn wide?</h1>
+        <p class="lede">
+          The course measures 26.2 miles along the tightest possible line, hugging every corner.
+          Nobody runs that line. Here’s the ceiling: what you’d run if you swung around the
+          <span class="outer-text">outside</span> of all <strong id="n-turns">–</strong> turns instead of the
+          <span class="inner-text">inside</span>.
+        </p>
+
+        <div class="odometer" aria-live="polite">
+          <div class="odo-main"><span id="odo">26.22</span><span class="unit">mi</span></div>
+          <div class="odo-sub"><span id="odo-ft">+0 ft</span> beyond the certified distance</div>
+        </div>
+
+        <div class="controls">
+          <div class="seg" role="radiogroup" aria-label="Turn style">
+            <button class="on" data-mode="arc" role="radio" aria-checked="true">Smooth arc</button>
+            <button data-mode="sharp" role="radio" aria-checked="false">Corner to corner</button>
+          </div>
+          <label class="drift">
+            <span>Drift toward the outside <b id="drift-val">100%</b></span>
+            <input id="drift" type="range" min="0" max="100" value="100" step="5" />
+          </label>
+        </div>
+
+        <section>
+          <h2>Where the extra feet pile up</h2>
+          <div id="chart"></div>
+        </section>
+
+        <section>
+          <h2>The most expensive corners <small>tap one to race it</small></h2>
+          <ol id="top-turns"></ol>
+        </section>
+
+        <section class="method">
+          <h2>How this works</h2>
+          <p>
+            <b>The geometry:</b> run parallel to the inside line, <i>w</i> feet farther out, and a turn of angle
+            <i>θ</i> costs you <i>w × θ</i> extra feet (θ in radians), however tight the corner. A 90° turn on a
+            60-ft street is about +94 ft. Running all the way into the far corner instead costs
+            <i>2w·tan(θ/2)</i>.
+          </p>
+          <p>
+            <b>The data:</b> the course is rebuilt street by street on NYC’s
+            <a href="https://www.nyc.gov/content/planning/pages/resources/datasets/lion">LION</a> street centerlines
+            from the race-day road-closure list, including 2026’s new Bronx route. Widths are LION curb-to-curb widths,
+            minus 1 ft off each curb. Divided roads use one roadbed, since you can’t cut across the median.
+          </p>
+          <p class="caveat">
+            A ceiling, not a prediction. Barricades, water stations and 50,000 other runners change the usable width.
+            Bay Ridge corral variants are simplified to one route.
+          </p>
+        </section>
+        <footer>Built by Dana Kraushar · map © <a href="https://carto.com/">CARTO</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></footer>
+      </aside>
+
+      <main id="map-wrap">
+        <div id="map"></div>
+        <div id="turn-card" hidden>
+          <button class="close" aria-label="Close">×</button>
+          <p class="card-kicker">Mile <span data-k="mile"></span> · #<span data-k="rank"></span> of <span data-k="n"></span></p>
+          <h3 data-k="streets"></h3>
+          <div class="card-stats">
+            <div><b data-k="angle"></b><span>turn</span></div>
+            <div><b data-k="width"></b><span>usable width</span></div>
+            <div class="hot"><b data-k="extra"></b><span>if you go wide</span></div>
+          </div>
+          <div class="race">
+            <div class="lane"><i class="dot inner"></i>Inside line<span data-k="inner-status"></span></div>
+            <div class="lane"><i class="dot outer"></i>Outside line<span data-k="outer-status"></span></div>
+          </div>
+          <button class="replay">↻ Race again</button>
+        </div>
+        <div id="hover-tip" hidden></div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

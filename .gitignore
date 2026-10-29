@@ -1,0 +1,13 @@
+# Python
+.venv/
+__pycache__/
+
+# Raw + intermediate data (LION is ~46 MB; rebuild with the pipeline)
+/data/
+
+# Web
+web/node_modules/
+web/dist/
+
+.DS_Store
+.env
