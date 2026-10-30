@@ -1,4 +1,4 @@
-"""Draw the 1200x627 link-preview image (Open Graph) from the site's own data: web/public/preview.png."""
+"""Draw the link-preview image (1200x627 layout, saved at 2x) (Open Graph) from the site's own data: web/public/preview.png."""
 
 import json
 
@@ -13,6 +13,7 @@ from lion import ROOT  # noqa: E402
 DATA = ROOT / "web/public/data"
 OUT = ROOT / "web/public/preview.png"
 W, H, DPI = 1200, 627, 100
+SCALE = 2  # save at 2400x1254 so it stays sharp on high-resolution screens (same layout)
 BG, TEXT, MUTED, LINE = "#0d0f14", "#e9ecf2", "#8a93a6", "#262b36"
 OUTER, COURSE = "#ff6a3d", "#f4f1ea"
 SANS, MONO = "Avenir Next", "Menlo"
@@ -76,7 +77,7 @@ def main():
 
     fig.text(x0, 0.035, "dkraushar.github.io/marathon-turns", family=MONO, size=12, color=MUTED)
     fig.text(0.975, 0.035, "Dana Kraushar", ha="right", family=SANS, weight="demibold", size=13, color=TEXT)
-    fig.savefig(OUT, dpi=DPI, facecolor=BG)
+    fig.savefig(OUT, dpi=DPI * SCALE, facecolor=BG)
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1024:.0f} KB)")
 
 
