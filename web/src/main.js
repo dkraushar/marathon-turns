@@ -157,6 +157,40 @@ const map = new maplibregl.Map({
 })
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 
+// Stacked (phone) layout: the map starts at 58% of the screen and shrinks to 32% as you scroll,
+// so the text gets the room once you're reading. CSS reads --map-h; the panel is padded by --map-big.
+const stacked = matchMedia('(max-width: 820px)')
+const root = document.documentElement
+let mapBig, mapSmall, lastWidth, fitTimer, fittedHeight
+function sizeMap() {
+  if (!stacked.matches) return
+  // Only re-measure when the width changes: phone address bars change the height while scrolling.
+  if (innerWidth !== lastWidth) {
+    lastWidth = innerWidth
+    mapBig = innerHeight * 0.58
+    mapSmall = innerHeight * 0.32
+    root.style.setProperty('--map-big', `${mapBig}px`)
+  }
+  const h = Math.max(mapSmall, mapBig - scrollY)
+  root.style.setProperty('--map-h', `${h}px`)
+  // Once scrolling settles, refit the whole course into the new map size (unless a turn is open).
+  clearTimeout(fitTimer)
+  fitTimer = setTimeout(() => {
+    if (state.selected !== null || h === fittedHeight) return
+    fittedHeight = h
+    map.fitBounds(summary.bounds, { padding: 16, duration: 400 })
+  }, 200)
+}
+let sizing = false
+addEventListener('scroll', () => {
+  if (sizing) return
+  sizing = true
+  requestAnimationFrame(() => { sizeMap(); sizing = false })
+}, { passive: true })
+addEventListener('resize', sizeMap)
+sizeMap()
+fittedHeight = mapBig
+
 const empty = () => ({ type: 'FeatureCollection', features: [] })
 const courseLine = course.features.flatMap((f) => f.geometry.coordinates)
 
@@ -288,6 +322,8 @@ function selectTurn(id) {
   set('width', `${Math.round(p.width_ft)} ft`)
   set('extra', `+${fmtFt(extraOf(p))} ft`)
   card.hidden = false
+  document.body.classList.add('turn-open')
+  map.resize() // apply the bigger stacked-layout map now, so fitBounds below uses the right size
   chart.highlight(id)
   drawList()
 
@@ -322,7 +358,11 @@ function race(id) {
       geometry: { type: 'Point', coordinates: along(l.coords, ran / l.len, l.cum) } })) })
     if (ran >= lanes[0].len) set('inner-status', 'finished ✓')
     if (ran >= lanes[0].len && ran < lanes[1].len) set('outer-status', `${fmtFt(lanes[1].len - ran)} ft to go…`)
-    if (ran >= lanes[1].len) { set('outer-status', `+${fmtFt(extraOf(turnById.get(id).properties))} ft longer`); return }
+    if (ran >= lanes[1].len) {
+      const ft = extraOf(turnById.get(id).properties)
+      set('outer-status', `+${fmtFt(ft)} ft · +${Math.round((ft / FT_PER_MI) * paceSec)} s`)
+      return
+    }
     raceFrame = requestAnimationFrame(tick)
   }
   raceFrame = requestAnimationFrame(tick)
@@ -331,6 +371,8 @@ function race(id) {
 card.querySelector('.replay').addEventListener('click', () => state.selected !== null && race(state.selected))
 card.querySelector('.close').addEventListener('click', () => {
   card.hidden = true
+  document.body.classList.remove('turn-open')
+  map.resize()
   cancelAnimationFrame(raceFrame)
   if (state.selected !== null) map.setFeatureState({ source: 'turns', id: state.selected }, { selected: false })
   state.selected = null
@@ -341,11 +383,12 @@ card.querySelector('.close').addEventListener('click', () => {
 })
 
 // ---------- Controls ----------
-document.querySelectorAll('.seg button').forEach((btn) => btn.addEventListener('click', () => {
+document.querySelectorAll('.seg [data-mode]').forEach((btn) => btn.addEventListener('click', () => {
   state.mode = btn.dataset.mode
-  document.querySelectorAll('.seg button').forEach((b) => {
+  document.querySelectorAll('.seg [data-mode]').forEach((b) => {
     b.classList.toggle('on', b === btn); b.setAttribute('aria-checked', b === btn)
   })
+  showHint()
   refresh()
   if (state.selected !== null) selectTurn(state.selected)
 }))
@@ -357,7 +400,70 @@ drift.addEventListener('input', () => {
 })
 function refresh(animate = true) {
   setOdometer(totalExtra(), animate)
+  updatePace()
   chart.draw()
   drawList()
   if (state.selected !== null) set('extra', `+${fmtFt(extraOf(turnById.get(state.selected).properties))} ft`)
 }
+
+const hint = document.querySelector('.mode-hint')
+function showHint() {
+  hint.dataset.mode = state.mode
+  hint.querySelectorAll('p').forEach((p) => { p.hidden = p.dataset.hint !== state.mode })
+}
+showHint()
+
+// ---------- Pace: what the extra distance costs in time ----------
+const paceInput = document.getElementById('pace-input')
+const paceOut = document.getElementById('pace-out')
+let paceUnit = 'finish'
+let paceSec = (4 * 3600) / CERTIFIED_MI // seconds per mile; default is a 4-hour marathon
+let carried = null // exact pace behind a unit-converted (rounded) input, so 4:00:00 → 9:09 → back stays 4:00:00
+
+// Finish time: "4:00:00", "3:45" (h:mm) or "4". Pace: "9:09" (m:ss) or "9".
+function parseTime(text, unit) {
+  const parts = text.trim().split(':').map((x) => (x === '' ? NaN : Number(x)))
+  const scale = unit === 'finish' ? [3600, 60, 1] : [60, 1]
+  if (parts.length > scale.length || parts.some((n) => !Number.isFinite(n) || n < 0)) return null
+  return parts.reduce((sum, n, i) => sum + n * scale[i], 0)
+}
+function clock(sec) {
+  sec = Math.round(sec)
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60
+  return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(s).padStart(2, '0')}`
+}
+
+function updatePace() {
+  const sec = parseTime(paceInput.value, paceUnit)
+  const pace = carried?.text === paceInput.value ? carried.pace : sec && (paceUnit === 'finish' ? sec / CERTIFIED_MI : sec)
+  const ok = pace >= 180 && pace <= 30 * 60 // between 3:00/mi and 30:00/mi
+  paceInput.classList.toggle('bad', !ok)
+  if (!ok) {
+    paceOut.innerHTML = paceUnit === 'finish' ? 'Enter a finish time like <b>4:00:00</b>.' : 'Enter a pace like <b>9:09</b>.'
+    return
+  }
+  paceSec = pace
+  const finish = pace * CERTIFIED_MI
+  const extra = (totalExtra() / FT_PER_MI) * pace
+  paceOut.innerHTML = `At an average pace of <b>${clock(pace)}/mi</b>, going wide adds ` +
+    `<b class="cost">${minSec(extra)}</b>, turning a ${clock(finish)} finish into <b>${clock(finish + extra)}</b>.`
+}
+function minSec(sec) {
+  const m = Math.floor(Math.round(sec) / 60), s = Math.round(sec) % 60
+  return m ? `${m}m ${s}s` : `${s}s`
+}
+
+document.querySelectorAll('.pace .seg button').forEach((btn) => btn.addEventListener('click', () => {
+  if (btn.dataset.unit === paceUnit) return
+  paceUnit = btn.dataset.unit
+  document.querySelectorAll('.pace .seg button').forEach((b) => {
+    b.classList.toggle('on', b === btn); b.setAttribute('aria-checked', b === btn)
+  })
+  // Carry the current goal over to the other unit.
+  paceInput.value = clock(paceUnit === 'finish' ? paceSec * CERTIFIED_MI : paceSec)
+  carried = { text: paceInput.value, pace: paceSec }
+  paceInput.setAttribute('aria-label', paceUnit === 'finish' ? 'Goal finish time' : 'Goal pace per mile')
+  updatePace()
+}))
+paceInput.addEventListener('input', updatePace)
+updatePace()

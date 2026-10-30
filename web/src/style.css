@@ -25,6 +25,13 @@ a { color: var(--text); text-decoration-color: var(--muted); }
 .kicker { font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--outer); margin: 0 0 14px; }
 h1 { font-size: 34px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 14px; }
 h1 em { font-style: normal; color: var(--outer); }
+.byline { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; }
+.byline a { color: inherit; text-decoration: none; }
+.byline .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  font: 700 14px var(--mono); color: var(--bg); background: linear-gradient(135deg, var(--inner), var(--outer)); }
+.byline b { display: block; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.byline small { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+.byline small a:hover, .byline b a:hover { color: var(--text); text-decoration: underline; }
 .lede { color: #c3c9d6; line-height: 1.5; font-size: 15px; margin: 0 0 22px; }
 .inner-text { color: var(--inner); font-weight: 600; }
 .outer-text { color: var(--outer); font-weight: 600; }
@@ -42,6 +49,25 @@ h1 em { font-style: normal; color: var(--outer); }
 .seg button.on { background: #222836; color: var(--text); }
 .drift { display: grid; gap: 8px; font-size: 13px; color: var(--muted); }
 .drift b { color: var(--text); font-family: var(--mono); }
+.mode-hint { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; }
+.mode-hint svg { width: 56px; height: 56px; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.mode-hint .curb { stroke: #3a4150; stroke-width: 1.5; }
+.mode-hint .lane-inner { stroke: var(--inner); }
+.mode-hint .lane-outer { stroke: var(--outer); opacity: .2; stroke-dasharray: 3 4; transition: opacity .3s; }
+.mode-hint[data-mode=arc] .arc, .mode-hint[data-mode=sharp] .sharp { opacity: 1; stroke-dasharray: none; }
+.mode-hint p { margin: 0; font-size: 13px; line-height: 1.45; color: #b3bacb; }
+.mode-hint p b { color: var(--text); }
+
+.pace-row { display: grid; grid-template-columns: 1fr 112px; gap: 8px; margin-bottom: 10px; }
+.seg.small button { font-size: 12px; padding: 7px 6px; }
+#pace-input { font: 700 16px var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 0 12px; text-align: center; min-width: 0; }
+#pace-input:focus { outline: none; border-color: var(--outer); }
+#pace-input.bad { border-color: #ff2d55; }
+#pace-out { margin: 0; font-size: 15px; line-height: 1.5; color: #c3c9d6; }
+#pace-out b { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+#pace-out .cost { color: var(--outer); }
+
 input[type=range] { width: 100%; accent-color: var(--outer); }
 
 section { margin-bottom: 26px; }
@@ -101,9 +127,13 @@ footer a { color: var(--muted); }
 .maplibregl-ctrl-attrib a { color: var(--muted) !important; }
 
 @media (max-width: 820px) {
-  #app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
-  #map-wrap { grid-row: 1; height: 58vh; position: sticky; top: 0; z-index: 2; }
-  #panel { grid-row: 2; overflow: visible; padding: 22px 16px; border-right: 0; }
+  /* Stacked layout: the map is pinned on top and shrinks from --map-big to --map-small as you scroll
+     (main.js sets --map-h), so the text gets more of the screen. It grows back while a turn is open. */
+  #app { display: block; height: auto; }
+  #map-wrap { position: fixed; top: 0; left: 0; right: 0; height: var(--map-h, 58vh); z-index: 2;
+    border-bottom: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  body.turn-open #map-wrap { height: var(--map-big, 58vh); }
+  #panel { overflow: visible; padding: calc(var(--map-big, 58vh) + 22px) 16px 22px; border-right: 0; }
   h1 { font-size: 28px; }
   .odo-main { font-size: 52px; }
   #turn-card { left: 10px; right: 10px; bottom: 10px; width: auto; padding: 12px 14px; }

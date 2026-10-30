@@ -14,6 +14,13 @@
       <aside id="panel">
         <p class="kicker">NYC Marathon · Sunday, Nov 1, 2026</p>
         <h1>What if you took <em>every</em> turn wide?</h1>
+        <div class="byline">
+          <span class="avatar" aria-hidden="true">DK</span>
+          <span>
+            <b><a href="https://www.linkedin.com/in/danakraushar/" target="_blank" rel="noopener">Dana Kraushar</a></b>
+            <small><a href="https://www.linkedin.com/in/danakraushar/" target="_blank" rel="noopener">LinkedIn ↗</a> · <a href="https://github.com/dkraushar/marathon-turns" target="_blank" rel="noopener">GitHub ↗</a></small>
+          </span>
+        </div>
         <p class="lede">
           The course measures 26.2 miles along the tightest possible line, hugging every corner.
           Nobody runs that line. Here’s the ceiling: what you’d run if you swung around the
@@ -31,11 +38,35 @@
             <button class="on" data-mode="arc" role="radio" aria-checked="true">Smooth arc</button>
             <button data-mode="sharp" role="radio" aria-checked="false">Corner to corner</button>
           </div>
+          <div class="mode-hint">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <path class="curb" d="M10 64V4H64M40 64V34H64" />
+              <path class="lane-inner" d="M37 64V31H64" />
+              <path class="lane-outer arc" d="M13 64V31A24 24 0 0 1 37 7H64" />
+              <path class="lane-outer sharp" d="M13 64V7H64" />
+            </svg>
+            <p data-hint="arc"><b>Smooth arc:</b> stay the same distance off the inside line and swing around the
+              corner in a curve, like a car taking a wide turn. The realistic worst case.</p>
+            <p data-hint="sharp" hidden><b>Corner to corner:</b> run straight into the far corner of the intersection,
+              then turn. This would be a bizarre way to run; the theoretical maximum.</p>
+          </div>
           <label class="drift">
             <span>Drift toward the outside <b id="drift-val">100%</b></span>
             <input id="drift" type="range" min="0" max="100" value="100" step="5" />
           </label>
         </div>
+
+        <section class="pace">
+          <h2>What it costs you</h2>
+          <div class="pace-row">
+            <div class="seg small" role="radiogroup" aria-label="Goal type">
+              <button class="on" data-unit="finish" role="radio" aria-checked="true">Finish time</button>
+              <button data-unit="pace" role="radio" aria-checked="false">Pace per mile</button>
+            </div>
+            <input id="pace-input" value="4:00:00" inputmode="numeric" autocomplete="off" aria-label="Goal finish time" />
+          </div>
+          <p id="pace-out" aria-live="polite"></p>
+        </section>
 
         <section>
           <h2>Where the extra feet pile up</h2>
@@ -66,7 +97,7 @@
             Bay Ridge corral variants are simplified to one route.
           </p>
         </section>
-        <footer>Built by Dana Kraushar · map © <a href="https://carto.com/">CARTO</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></footer>
+        <footer>Built by <a href="https://www.linkedin.com/in/danakraushar/" target="_blank" rel="noopener">Dana Kraushar</a> · map © <a href="https://carto.com/">CARTO</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></footer>
       </aside>
 
       <main id="map-wrap">
