@@ -62,16 +62,20 @@ const chart = (() => {
   const x = d3.scaleLinear([0, CERTIFIED_MI], [m.left, width - m.right])
   const y = d3.scaleLinear().range([height - m.bottom, m.top])
 
+  // On narrow (phone) charts, labels that would touch get spaced out.
+  const narrow = width < 420
   const boroughs = svg.append('g').attr('class', 'borough')
   BOROUGHS.forEach((b, i) => {
     const g = boroughs.append('g').attr('transform', `translate(${x(b.mile)},0)`)
     if (i) g.append('line').attr('y1', m.top - 4).attr('y2', height - m.bottom)
-    g.append('text').attr('x', 3).attr('y', m.top - 2).text(b.name)
+    // The Bronx stretch is only ~1.3 mi wide, so on phones its label drops a line to clear "Man".
+    const drop = narrow && b.name === 'Bx'
+    g.append('text').attr('x', 3).attr('y', m.top - 2 + (drop ? 11 : 0)).text(b.name)
   })
   const gridG = svg.append('g').attr('class', 'grid')
   const yAxisG = svg.append('g').attr('class', 'axis').attr('transform', `translate(${m.left},0)`)
   svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${height - m.bottom})`)
-    .call(d3.axisBottom(x).tickValues([0, 5, 10, 13.1, 15, 20, 26.2]).tickFormat((d) => (d === 26.2 ? '26.2 mi' : d)).tickSizeOuter(0))
+    .call(d3.axisBottom(x).tickValues(narrow ? [0, 5, 10, 13.1, 20, 26.2] : [0, 5, 10, 13.1, 15, 20, 26.2]).tickFormat((d) => (d === 26.2 ? '26.2 mi' : d)).tickSizeOuter(0))
   const area = svg.append('path').attr('class', 'area')
   const line = svg.append('path').attr('class', 'step')
   const dots = svg.append('g')
@@ -157,7 +161,7 @@ const map = new maplibregl.Map({
 })
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 
-// Stacked (phone) layout: the map starts at 58% of the screen and shrinks to 32% as you scroll,
+// Stacked (phone) layout: the map starts at 58% of the screen and shrinks to 25% as you scroll,
 // so the text gets the room once you're reading. CSS reads --map-h; the panel is padded by --map-big.
 const stacked = matchMedia('(max-width: 820px)')
 const root = document.documentElement
@@ -168,7 +172,7 @@ function sizeMap() {
   if (innerWidth !== lastWidth) {
     lastWidth = innerWidth
     mapBig = innerHeight * 0.58
-    mapSmall = innerHeight * 0.32
+    mapSmall = innerHeight * 0.25
     root.style.setProperty('--map-big', `${mapBig}px`)
   }
   const h = Math.max(mapSmall, mapBig - scrollY)
@@ -332,8 +336,11 @@ function selectTurn(id) {
   map.getSource('paths').setData({ type: 'FeatureCollection', features: pathFeatures })
   const bounds = new maplibregl.LngLatBounds()
   pathFeatures.forEach((pf) => pf.geometry.coordinates.forEach((c) => bounds.extend(c)))
-  // Keep the turn clear of the info card (bottom-left on desktop, bottom on mobile).
-  map.fitBounds(bounds, { padding: isMobile ? { top: 30, bottom: 200, left: 30, right: 30 } : { top: 60, bottom: 300, left: 60, right: 60 },
+  // On the stacked layout the card sits below the map; on desktop it covers the map's bottom-left,
+  // so leave room for its actual height.
+  const padding = stacked.matches ? { top: 40, bottom: 30, left: 30, right: 50 }
+    : { top: 60, bottom: card.offsetHeight + 60, left: 60, right: 60 }
+  map.fitBounds(bounds, { padding,
     maxZoom: 18.5, duration: 1800, essential: true })
   map.once('moveend', () => race(id))
 }
@@ -379,7 +386,7 @@ card.querySelector('.close').addEventListener('click', () => {
   map.getSource('paths').setData(empty())
   map.getSource('ghosts').setData(empty())
   chart.highlight(null); drawList()
-  map.fitBounds(summary.bounds, { padding: isMobile ? 24 : 60, duration: 1500 })
+  map.fitBounds(summary.bounds, { padding: stacked.matches ? 16 : 60, duration: 1500 })
 })
 
 // ---------- Controls ----------
@@ -450,7 +457,7 @@ function updatePace() {
 }
 function minSec(sec) {
   const m = Math.floor(Math.round(sec) / 60), s = Math.round(sec) % 60
-  return m ? `${m}m ${s}s` : `${s}s`
+  return m ? `${m}m\u00a0${s}s` : `${s}s` // non-breaking space keeps "5m 11s" on one line
 }
 
 document.querySelectorAll('.pace .seg button').forEach((btn) => btn.addEventListener('click', () => {
