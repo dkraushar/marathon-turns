@@ -8,17 +8,18 @@ import './style.css'
 
 maplibregl.setWorkerUrl(new URL(workerUrl, location.href).href)
 
-const DATA = `${import.meta.env.BASE_URL}data/`
+// Which marathon: #/berlin, #/tokyo… (NYC by default). Switching reloads, so the map and charts start fresh.
+const ROOT = `${import.meta.env.BASE_URL}data/`
+const cities = await fetch(ROOT + 'cities.json').then((r) => r.json())
+const requested = (location.hash.match(/^#\/([a-z]+)/) || [])[1]
+const SLUG = cities.some((c) => c.slug === requested) ? requested : 'nyc'
+addEventListener('hashchange', () => location.reload())
+const DATA = `${ROOT}${SLUG}/`
 const BASEMAP = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 const CERTIFIED_MI = 42.195 / 1.609344
 const FT_PER_MI = 5280
 const C = { inner: '#3ddbd9', outer: '#ff6a3d', course: '#f4f1ea' }
 
-// Rough borough breaks by mile, for chart context.
-const BOROUGHS = [
-  { mile: 0, name: 'SI' }, { mile: 1.9, name: 'Brooklyn' }, { mile: 13.1, name: 'Qns' },
-  { mile: 15.5, name: 'Man' }, { mile: 19.5, name: 'Bx' }, { mile: 20.8, name: 'Man' },
-]
 
 const state = { mode: 'arc', drift: 1, selected: null }
 const fmtFt = d3.format(',.0f')
@@ -27,6 +28,8 @@ const [course, miles, turns, paths, cumulative, summary] = await Promise.all(
   ['course.geojson', 'miles.geojson', 'turns.geojson', 'turn_paths.geojson', 'cumulative.json', 'summary.json']
     .map((f) => fetch(DATA + f).then((r) => r.json())),
 )
+// Optional chart sections by mile (NYC's boroughs), from the pipeline.
+const BOROUGHS = (summary.sections || []).map(([mile, name]) => ({ mile, name }))
 const turnById = new Map(turns.features.map((f) => [f.properties.id, f]))
 const ranked = [...turns.features].sort((a, b) => a.properties.rank - b.properties.rank)
 document.getElementById('n-turns').textContent = turns.features.length
@@ -407,6 +410,7 @@ drift.addEventListener('input', () => {
 })
 function refresh(animate = true) {
   setOdometer(totalExtra(), animate)
+  compare.draw()
   updatePace()
   chart.draw()
   drawList()
@@ -474,3 +478,57 @@ document.querySelectorAll('.pace .seg button').forEach((btn) => btn.addEventList
 }))
 paceInput.addEventListener('input', updatePace)
 updatePace()
+
+// ---------- Cities: switcher, per-city text, comparison ----------
+const SHORT = { nyc: 'NYC', capetown: 'Cape Town' }
+const nav = d3.select('#cities')
+nav.selectAll('a').data(cities.slice().sort((a, b) => a.city.localeCompare(b.city))).join('a')
+  .attr('href', (c) => `#/${c.slug}`).classed('on', (c) => c.slug === SLUG)
+  .attr('aria-current', (c) => (c.slug === SLUG ? 'page' : null))
+  .text((c) => SHORT[c.slug] || c.city)
+
+document.getElementById('kicker').textContent = `${summary.name} · ${summary.edition} course`
+if (SLUG !== 'nyc') document.title = `Running Wide · ${summary.city}`
+document.querySelectorAll('[data-source]').forEach((el) => { el.hidden = el.dataset.source !== summary.source })
+document.getElementById('edition').textContent = summary.edition
+document.getElementById('gpx-link').href = summary.gpx_source
+
+const compare = (() => {
+  const el = document.getElementById('compare-chart')
+  const width = el.clientWidth || 380
+  const rowH = 26
+  const m = { top: 4, right: 64, bottom: 4, left: 84 }
+  const svg = d3.select(el).append('svg').attr('width', width).attr('height', m.top + m.bottom + rowH * cities.length)
+  const x = d3.scaleLinear().range([m.left, width - m.right])
+  const y = d3.scaleBand().range([m.top, m.top + rowH * cities.length]).padding(0.3)
+
+  function draw(first = false) {
+    const val = (c) => (state.mode === 'arc' ? c.extra_arc_ft : c.extra_sharp_ft) * state.drift
+    const rows = cities.slice().sort((a, b) => val(b) - val(a))
+    x.domain([0, d3.max(cities, (c) => c.extra_sharp_ft)])
+    y.domain(rows.map((c) => c.slug))
+    const t = svg.transition().duration(first ? 0 : 500)
+    const g = svg.selectAll('g.row').data(rows, (c) => c.slug).join((enter) => {
+      const r = enter.append('g').attr('class', 'row').on('click', (_, c) => { location.hash = `#/${c.slug}` })
+      r.append('rect').attr('class', 'hit').attr('x', 0).attr('width', width).attr('height', rowH)
+      r.append('text').attr('class', 'city').attr('x', m.left - 8).attr('dy', '0.35em').attr('text-anchor', 'end')
+      r.append('rect').attr('class', 'bar').attr('x', m.left).attr('rx', 3)
+      r.append('text').attr('class', 'val').attr('dy', '0.35em')
+      return r
+    }).classed('current', (c) => c.slug === SLUG)
+    g.transition(t).attr('transform', (c) => `translate(0,${y(c.slug)})`)
+    g.select('.hit').attr('y', -(rowH - y.bandwidth()) / 2)
+    g.select('.city').attr('y', y.bandwidth() / 2).text((c) => SHORT[c.slug] || c.city)
+    g.select('.bar').attr('height', y.bandwidth()).transition(t).attr('width', (c) => x(val(c)) - m.left)
+    g.select('.val').attr('y', y.bandwidth() / 2).transition(t).attr('x', (c) => x(val(c)) + 6)
+      .text((c) => `+${fmtFt(val(c))}′`)
+  }
+  return { draw }
+})()
+compare.draw(true)
+
+const me = cities.find((c) => c.slug === SLUG)
+document.getElementById('compare-note').textContent = SLUG === 'nyc'
+  ? `Bars estimate every race’s street widths from OpenStreetMap, so they compare fairly. NYC’s own measured widths ` +
+    `(used on this page) give +${fmtFt(me.page_extra_arc_ft)} ft instead of +${fmtFt(me.extra_arc_ft)} ft.`
+  : 'Every race measured the same way: its course snapped onto OpenStreetMap, with widths estimated from lane counts.'

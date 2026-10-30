@@ -12,7 +12,8 @@
   <body>
     <div id="app">
       <aside id="panel">
-        <p class="kicker">NYC Marathon · Sunday, Nov 1, 2026</p>
+        <nav id="cities" aria-label="Choose a marathon"></nav>
+        <p class="kicker" id="kicker">New York City Marathon · 2026 course</p>
         <h1>What if you took <em>every</em> turn wide?</h1>
         <div class="byline">
           <span class="avatar" aria-hidden="true">DK</span>
@@ -68,6 +69,12 @@
           <p id="pace-out" aria-live="polite"></p>
         </section>
 
+        <section class="compare">
+          <h2>How the Majors compare <small>tap a race to open it</small></h2>
+          <div id="compare-chart"></div>
+          <p class="note" id="compare-note"></p>
+        </section>
+
         <section>
           <h2>Where the extra feet pile up</h2>
           <div id="chart"></div>
@@ -86,15 +93,23 @@
             60-ft street is about +94 ft. Running all the way into the far corner instead costs
             <i>2w·tan(θ/2)</i>.
           </p>
-          <p>
+          <p data-source="lion">
             <b>The data:</b> the course is rebuilt street by street on NYC’s
             <a href="https://www.nyc.gov/content/planning/pages/resources/datasets/lion">LION</a> street centerlines
             from the race-day road-closure list, including 2026’s new Bronx route. Widths are LION curb-to-curb widths,
             minus 1 ft off each curb. Divided roads use one roadbed, since you can’t cut across the median.
           </p>
+          <p data-source="osm" hidden>
+            <b>The data:</b> the course comes from a <a id="gpx-link" href="#">GPS track of the <span id="edition"></span>
+            race</a>, snapped onto <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> streets.
+            OpenStreetMap rarely records curb-to-curb width, so widths are estimated from lane counts
+            (8 ft per lane + 30 ft for parking, bike lanes and gutters), a rule fitted to NYC’s measured widths.
+            It’s rough street by street (±13 ft) but identical for every city, so the races compare fairly. Cities with
+            less street parking than New York probably come out a little wide.
+          </p>
           <p class="caveat">
-            A ceiling, not a prediction. Barricades, water stations and 50,000 other runners change the usable width.
-            Bay Ridge corral variants are simplified to one route.
+            A ceiling, not a prediction. Barricades, water stations and tens of thousands of other runners change the
+            usable width.<span data-source="lion"> Bay Ridge corral variants are simplified to one route.</span>
           </p>
         </section>
         <footer>Built by <a href="https://www.linkedin.com/in/danakraushar/" target="_blank" rel="noopener">Dana Kraushar</a> · map © <a href="https://carto.com/">CARTO</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></footer>

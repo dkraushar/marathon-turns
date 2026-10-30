@@ -15,7 +15,8 @@ import re
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import LineString
+import pyproj
+from shapely.geometry import LineString, Point
 
 from lion import LION_GDB, ROOT, load_streets
 
@@ -90,23 +91,27 @@ def vertex_angles(coords: np.ndarray) -> np.ndarray:
     return (turn + np.pi) % (2 * np.pi) - np.pi
 
 
-def build():
-    streets = load_streets()
-    course = gpd.read_parquet(PROC / "course.parquet")
-    seg_ids = np.load(PROC / "course_segments.npy")
-    raw = np.array(course.geometry.iloc[0].coords)
+def analyze(raw: np.ndarray, edge_width: np.ndarray, edge_name: np.ndarray, name_fn=friendly):
+    """Find turns on any course.
 
-    widths = segment_widths(streets, seg_ids)
-    names = streets.Street
-
-    # Per raw vertex: which LION segment we're on (vertex i starts raw edge i).
-    raw_seg = np.append(seg_ids, seg_ids[-1])
-
+    raw:        (n, 2) course vertices in feet
+    edge_width: (n-1,) curb-to-curb width (ft) of each course segment
+    edge_name:  (n-1,) street name of each course segment
+    Returns (turns, summary, vertices).
+    """
+    edge_width, edge_name = np.asarray(edge_width, float), np.asarray(edge_name, object)
     line = LineString(raw).simplify(SIMPLIFY_FT, preserve_topology=False)
     coords = np.array(line.coords)
-    # Map simplified vertices back to raw vertices to look up the street there.
-    raw_idx = np.array([np.argmin(np.hypot(*(raw - c).T)) for c in coords])
-    seg_at = raw_seg[raw_idx]
+    # Simplified vertices are a subset of the raw ones, in order. Match them walking forward, so a course that
+    # passes the same spot twice (out-and-backs) picks up the right pass.
+    raw_idx, j = [], 0
+    for c in coords:
+        while j < len(raw) and not np.allclose(raw[j], c):
+            j += 1
+        raw_idx.append(min(j, len(raw) - 1))
+    raw_idx = np.array(raw_idx)
+    e_out = np.minimum(raw_idx, len(raw) - 2)   # segment leaving each simplified vertex
+    e_in = np.maximum(raw_idx - 1, 0)           # segment arriving
 
     dist = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(coords, axis=0).T))])
     angles = vertex_angles(coords)  # angles[k] is at vertex k+1
@@ -116,10 +121,9 @@ def build():
     for k, theta in enumerate(angles, start=1):
         if abs(np.degrees(theta)) < MIN_VERTEX_DEG:
             continue
-        seg_in, seg_out = raw_seg[max(raw_idx[k] - 1, 0)], seg_at[k]
-        w_in, w_out = widths[seg_in], widths[seg_out]
         rows.append(dict(vertex=k, x=coords[k, 0], y=coords[k, 1], dist_ft=dist[k], theta=theta,
-                         w_in=w_in, w_out=w_out, street_in=names[seg_in], street_out=names[seg_out]))
+                         w_in=edge_width[e_in[k]], w_out=edge_width[e_out[k]],
+                         street_in=edge_name[e_in[k]], street_out=edge_name[e_out[k]]))
     v = pd.DataFrame(rows)
     v["w_eff"] = ((v.w_in + v.w_out) / 2 - 2 * CURB_BUFFER_FT).clip(lower=0)
     v["extra_arc"] = v.w_eff * v.theta.abs()
@@ -135,7 +139,7 @@ def build():
     v["turn"] = turn_id
 
     def summarize(g):
-        streets_here = list(dict.fromkeys(friendly(n) for n in [g.street_in.iloc[0], *g.street_out]))
+        streets_here = list(dict.fromkeys(name_fn(n) for n in [g.street_in.iloc[0], *g.street_out]))
         return pd.Series(dict(
             x=np.average(g.x, weights=g.theta.abs()), y=np.average(g.y, weights=g.theta.abs()),
             dist_ft=np.average(g.dist_ft, weights=g.theta.abs()),
@@ -160,19 +164,112 @@ def build():
         extra_arc_turns_only_ft=float(t.extra_arc_ft.sum()),
         extra_arc_bends_ft=float(turns[turns.kind == "bend"].extra_arc_ft.sum()),
     )
+    vertices = pd.DataFrame(dict(x=coords[:, 0], y=coords[:, 1], dist_ft=dist, width_ft=edge_width[e_out],
+                                 street=edge_name[e_out]))
+    return turns, summary, vertices
+
+
+def save(slug: str, source: str, turns, summary, vertices, crs):
+    """Write data/processed/<slug>/<source>_{turns,summary,vertices}."""
+    out = PROC / slug
+    out.mkdir(parents=True, exist_ok=True)
+    gpd.GeoDataFrame(turns, geometry=gpd.points_from_xy(turns.x, turns.y), crs=crs).to_parquet(out / f"{source}_turns.parquet")
+    (out / f"{source}_summary.json").write_text(json.dumps(dict(summary, crs=pyproj.CRS(crs).to_wkt()), indent=1))
+    vertices.to_parquet(out / f"{source}_vertices.parquet")
+
+
+def report(turns, summary):
     print(json.dumps(summary, indent=1))
+    t = turns[turns.kind == "turn"]
     print(t.sort_values("extra_arc_ft", ascending=False)
           [["mile", "streets", "angle_deg", "width_ft", "extra_arc_ft", "extra_sharp_ft"]].head(15).round(1).to_string())
 
-    gpd.GeoDataFrame(turns, geometry=gpd.points_from_xy(turns.x, turns.y), crs=2263).to_parquet(PROC / "turns.parquet")
-    (PROC / "summary.json").write_text(json.dumps(summary, indent=1))
 
-    # Simplified course with per-vertex width + cumulative distance, for the web export.
-    w_vertex = widths.reindex(seg_at).to_numpy()
-    pd.DataFrame(dict(x=coords[:, 0], y=coords[:, 1], dist_ft=dist, width_ft=w_vertex,
-                      street=names.reindex(seg_at).to_numpy())).to_parquet(PROC / "course_vertices.parquet")
+def build():
+    """NYC, measured on LION (the reference everything else is calibrated against)."""
+    streets = load_streets()
+    course = gpd.read_parquet(PROC / "course.parquet")
+    seg_ids = np.load(PROC / "course_segments.npy")
+    raw = np.array(course.geometry.iloc[0].coords)
+    widths = segment_widths(streets, seg_ids)
+    turns, summary, vertices = analyze(raw, widths.reindex(seg_ids).to_numpy(), streets.Street.reindex(seg_ids).to_numpy())
+    report(turns, summary)
+    save("nyc", "lion", turns, summary, vertices, 2263)
+    return turns, summary
+
+
+OSM_ABBREV = {"Avenue": "Ave", "Street": "St", "Boulevard": "Blvd", "Drive": "Dr", "Place": "Pl", "Road": "Rd",
+              "Parkway": "Pkwy", "Terrace": "Ter", "Square": "Sq"}
+OSM_GENERIC = {"motorway_link": "ramp", "trunk_link": "ramp", "primary_link": "ramp", "secondary_link": "ramp",
+               "tertiary_link": "ramp", "service": "service road", "footway": "path", "path": "path",
+               "pedestrian": "plaza", "cycleway": "path", "track": "path", "gap": "path"}
+
+
+OSM_UNNAMED_ROADS = {"motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential",
+                     "living_street", "road"}
+
+
+def osm_friendly(name: str) -> str:
+    """OSM names are already readable; shorten the common suffixes and give unnamed ramps/paths a word."""
+    if name in OSM_GENERIC:
+        return OSM_GENERIC[name]
+    if name in OSM_UNNAMED_ROADS:  # no name in OSM: we fell back to the road class
+        return "street"
+    name = str(name)
+    if name.startswith("(") and name.endswith(")"):  # e.g. Tokyo's "(田町駅西口交差点)" intersection names
+        name = name[1:-1]
+    return " ".join(OSM_ABBREV.get(w, w) for w in name.split())
+
+
+HAIRPIN_DEG = 120      # turns sharper than this must also show up in the guide
+GUIDE_WINDOW_FT = 800  # how far along the guide to look for that turn (turnarounds can snap a block early)
+
+
+def drop_artifacts(turns, summary, guide: LineString):
+    """Hairpins that the GPX guide doesn't make are snapping artifacts (the street graph forced a loop or a
+    reversal between parallel carriageways). Real turnarounds are in the guide, so they survive."""
+    g = np.array(guide.simplify(30).coords)
+    g_dist = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(g, axis=0).T))])[1:-1]
+    g_ang = np.degrees(vertex_angles(g))
+    keep = []
+    for t in turns.itertuples():
+        if abs(t.angle_deg) < HAIRPIN_DEG:
+            keep.append(True)
+            continue
+        at = guide.project(Point(t.x, t.y))
+        near = np.abs(g_dist - at) <= GUIDE_WINDOW_FT
+        keep.append(abs(g_ang[near].sum()) >= 0.6 * abs(t.angle_deg))
+    keep = np.array(keep)
+    dropped = turns[~keep]
+    if len(dropped):
+        print(f"dropped {len(dropped)} hairpin artifacts ({dropped.extra_arc_ft.sum():.0f} ft): "
+              + "; ".join(f"mi {r.mile:.1f} {r.streets} {r.angle_deg:+.0f}°" for r in dropped.itertuples()))
+    turns = turns[keep].reset_index(drop=True)
+    t = turns[turns.kind == "turn"]
+    summary = dict(summary, n_turns=int(len(t)), total_turning_deg=float(turns.angle_deg.abs().sum()),
+                   extra_arc_ft=float(turns.extra_arc_ft.sum()), extra_sharp_ft=float(turns.extra_sharp_ft.sum()),
+                   extra_arc_turns_only_ft=float(t.extra_arc_ft.sum()),
+                   artifacts_dropped=int(len(dropped)), artifacts_ft=float(dropped.extra_arc_ft.sum()))
+    return turns, summary
+
+
+def build_osm(slug: str):
+    """Any city, measured on OSM streets snapped from its GPX guide (match.py)."""
+    from osm import width_ft
+    course = gpd.read_parquet(PROC / slug / "course_osm.parquet")
+    edges = pd.read_parquet(PROC / slug / "edges_osm.parquet")
+    raw = np.array(course.geometry.iloc[0].coords)
+    turns, summary, vertices = analyze(raw, width_ft(edges), edges.name.to_numpy(), name_fn=osm_friendly)
+    turns, summary = drop_artifacts(turns, summary, gpd.read_parquet(PROC / slug / "guide.parquet").geometry.iloc[0])
+    summary["width_sources"] = (edges.groupby("width_how").length.sum() / edges.length.sum()).round(3).to_dict()
+    save(slug, "osm", turns, summary, vertices, course.crs)
     return turns, summary
 
 
 if __name__ == "__main__":
-    build()
+    import sys
+    if len(sys.argv) > 1:
+        for slug in sys.argv[1:]:
+            report(*build_osm(slug))
+    else:
+        build()
