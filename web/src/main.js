@@ -47,7 +47,7 @@ function setOdometer(ft, animate = true) {
       return (t) => {
         const v = i(t)
         odo.textContent = (CERTIFIED_MI + v / FT_PER_MI).toFixed(2)
-        odoFt.textContent = `+${fmtFt(v)} ft (+${(v / FT_PER_MI).toFixed(2)} mi)`
+        odoFt.textContent = `+${fmtFt(v)} ft (+${(v / FT_PER_MI).toFixed(2)} mi, +${((v / FT_PER_MI / CERTIFIED_MI) * 100).toFixed(1)}%)`
       }
     })
 }
