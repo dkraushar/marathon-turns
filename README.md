@@ -82,4 +82,6 @@ cd web && npm install && npm run dev
 ```
 
 Data: [NYC LION](https://www.nyc.gov/content/planning/pages/resources/datasets/lion) (NYC Department of City
-Planning). Basemap © CARTO, © OpenStreetMap contributors.
+Planning). Basemap © CARTO, © OpenStreetMap contributors. Link-preview map: NYC Open Data
+[Borough Boundaries](https://data.cityofnewyork.us/d/gthc-hcne) and US Census Bureau
+[cartographic county boundaries](https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html).
