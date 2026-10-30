@@ -39,7 +39,8 @@ h1 em { font-style: normal; color: var(--outer); }
 .byline .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
   font: 700 14px var(--mono); color: var(--bg); background: linear-gradient(135deg, var(--inner), var(--outer)); }
 .byline b { display: block; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-.byline small { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+.byline .tagline { display: block; font-size: 13px; color: #c3c9d6; margin-top: 2px; }
+.byline small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .byline small a:hover, .byline b a:hover { color: var(--text); text-decoration: underline; }
 .lede { color: #c3c9d6; line-height: 1.5; font-size: 15px; margin: 0 0 22px; }
 .inner-text { color: var(--inner); font-weight: 600; }

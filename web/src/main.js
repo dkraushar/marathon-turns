@@ -50,7 +50,7 @@ function setOdometer(ft, animate = true) {
       return (t) => {
         const v = i(t)
         odo.textContent = (CERTIFIED_MI + v / FT_PER_MI).toFixed(2)
-        odoFt.textContent = `+${fmtFt(v)} ft (+${(v / FT_PER_MI).toFixed(2)} mi, +${((v / FT_PER_MI / CERTIFIED_MI) * 100).toFixed(1)}%)`
+        odoFt.textContent = `+${(v / FT_PER_MI).toFixed(2)} mi (+${fmtFt(v)} ft, +${((v / FT_PER_MI / CERTIFIED_MI) * 100).toFixed(1)}%)`
       }
     })
 }
@@ -521,7 +521,7 @@ const compare = (() => {
     g.select('.city').attr('y', y.bandwidth() / 2).text((c) => SHORT[c.slug] || c.city)
     g.select('.bar').attr('height', y.bandwidth()).transition(t).attr('width', (c) => x(val(c)) - m.left)
     g.select('.val').attr('y', y.bandwidth() / 2).transition(t).attr('x', (c) => x(val(c)) + 6)
-      .text((c) => `+${fmtFt(val(c))}′`)
+      .text((c) => `+${(val(c) / FT_PER_MI).toFixed(2)} mi`)
   }
   return { draw }
 })()
