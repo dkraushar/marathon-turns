@@ -81,6 +81,12 @@ uv run python pipeline/export.py
 cd web && npm install && npm run dev
 ```
 
+## Credits
+
+Built by [Dana Kraushar](https://www.linkedin.com/in/danakraushar/) with
+[Claude Code](https://claude.com/claude-code) (Anthropic) as an AI pair programmer: Dana set the question,
+made the design and method calls, and reviewed each step; Claude wrote most of the code and ran the analysis.
+
 Data: [NYC LION](https://www.nyc.gov/content/planning/pages/resources/datasets/lion) (NYC Department of City
 Planning). Basemap © CARTO, © OpenStreetMap contributors. Link-preview map: NYC Open Data
 [Borough Boundaries](https://data.cityofnewyork.us/d/gthc-hcne) and US Census Bureau
