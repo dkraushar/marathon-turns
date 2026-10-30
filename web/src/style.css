@@ -22,6 +22,15 @@ a { color: var(--text); text-decoration-color: var(--muted); }
 #map-wrap { position: relative; }
 #map { position: absolute; inset: 0; }
 
+.city-switch { margin: -6px 0 22px; }
+.city-switch .label { display: block; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px; }
+#cities { display: flex; flex-wrap: wrap; gap: 6px; }
+#cities a { font: 500 12px var(--sans); color: var(--muted); text-decoration: none; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
+#cities a:hover { color: var(--text); border-color: #3a4150; }
+#cities a.on { color: var(--bg); background: var(--outer); border-color: var(--outer); font-weight: 600; }
+
 .kicker { font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--outer); margin: 0 0 14px; }
 h1 { font-size: 34px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 14px; }
 h1 em { font-style: normal; color: var(--outer); }
@@ -95,6 +104,18 @@ h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; margin-lef
 #top-turns .name small { display: block; color: var(--muted); font-size: 12px; }
 #top-turns .ft { font: 700 14px var(--mono); color: var(--outer); text-align: right; }
 #top-turns .bar { grid-column: 2 / 4; height: 3px; border-radius: 2px; background: var(--outer); opacity: .55; margin-top: -4px; }
+
+#compare-chart svg { display: block; overflow: visible; }
+#compare-chart .row { cursor: pointer; }
+#compare-chart .hit { fill: transparent; }
+#compare-chart .row:hover .hit { fill: #1b202a; }
+#compare-chart .city { fill: var(--muted); font: 13px var(--sans); }
+#compare-chart .bar { fill: var(--outer); opacity: .45; }
+#compare-chart .val { fill: var(--muted); font: 600 12px var(--mono); }
+#compare-chart .current .city { fill: var(--text); font-weight: 700; }
+#compare-chart .current .bar { opacity: 1; }
+#compare-chart .current .val { fill: var(--outer); }
+.compare .note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 
 .method p { color: #b3bacb; font-size: 14px; line-height: 1.55; margin: 0 0 10px; }
 .method .caveat { color: var(--muted); font-size: 13px; }
